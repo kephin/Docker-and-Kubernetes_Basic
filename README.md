@@ -7,6 +7,7 @@
 |3. |[Manipulate dockers with docker-cli](#Manipulate-dockers-with-docker-cli)|
 |4. |[Build custom images](#Build-custom-images)|
 |5. |[Make real project with Docker](#Make-real–project-with-Docker)|
+|6. |[Docker compose with multiple local containers](#Docker-compose-with-multiple-local-containers)|
 
 ## Why use Docker
 
@@ -224,3 +225,87 @@ COPY ./ ./
 
 CMD ["node", "start"]
 ```
+
+## Docker compose with multiple local containers
+
+- `docker-compose` is used to start up **multiple containers** at the same time
+
+- `docker-compose` also automate some long-winded arguments we were passing to `docker run`
+
+### Define `docker-compose.yml` file
+
+Instead of running
+
+```bash
+docker build -t kephin/visits:latest .
+docker run -p 8080:8080 kephin/visits
+```
+
+We create a `docker-compose.yml` file that contains all the options we'd normally pass to docker-cli
+
+By defining services inside the `docker-compose.yml` file, docker-compose is going to automatically create those containers on the same network, and they'll have free access to communicate to each other.
+
+```yml
+version: '3'
+services:
+  redis-server:
+    image: 'redis'
+  visits-app:
+    build: .
+    ports:
+      - '3000:8080'
+```
+
+:smile: Now redis-server and visit-app can communicate to each other automatically.
+
+So inside our node application
+
+```javascript
+const express = require('express')
+const redis = require('redis')
+
+const client = redis.createClient({
+  /*
+  usually you'll need to put https://... as url
+
+  but since we're making use of docker-compose, we can can connect to the other container simply by referring to its name
+  */
+  host: 'redis-server',
+  port: 6379
+})
+// ...
+```
+
+### How to start up docker-compose using yml
+
+If we want to run containers
+
+```bash
+# docker
+docker run myImage
+# docker-compose
+docker-compose up
+```
+
+If we want to re-build the images
+
+```bash
+# docker
+docker build .
+docker run myImage
+# docker-compose
+docker-compose up --build
+```
+
+If we want to launch containers in background and then want to stop the container
+
+```bash
+# docker
+docker run -d redis
+docker stop neip122421
+# docker-compose
+docker-compose up -d
+docker-compose down
+```
+
+### Container maintenance with compose - automatic container restarts
