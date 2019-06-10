@@ -6,7 +6,7 @@
 |2. |[What is Docker](#What-is-Docker)|
 |3. |[Manipulate dockers with docker-cli](#Manipulate-dockers-with-docker-cli)|
 |4. |[Build custom images](#Build-custom-images)|
-|5. |[Make real project with Docker](#Make-real–project-with-Docker)|
+|5. |[Make real project with Docker](#Make-real-project-with-Docker)|
 |6. |[Docker compose with multiple local containers](#Docker-compose-with-multiple-local-containers)|
 |7. |[Create a production-grade workflow](#Create-a-production-grade-workflow)|
 
