@@ -8,6 +8,7 @@
 |4. |[Build custom images](#Build-custom-images)|
 |5. |[Make real project with Docker](#Make-real–project-with-Docker)|
 |6. |[Docker compose with multiple local containers](#Docker-compose-with-multiple-local-containers)|
+|7. |[Create a production-grade workflow](#Create-a-production-grade-workflow)|
 
 ## Why use Docker
 
@@ -309,3 +310,123 @@ docker-compose down
 ```
 
 ### Container maintenance with compose - automatic container restarts
+
+## Create a production-grade workflow
+
+Create `Dockerfile.dev`
+
+```dockerfile
+FROM node:alpine
+
+WORKDIR '/app'
+
+COPY package.json .
+RUN npm install
+COPY . .
+
+CMD ["npm", "start"]
+```
+
+Build the docker image
+
+```bash
+# need to specify the file name
+# because by default it will look for Dockerfile
+docker build -f Dockerfile.dev -t kephin/frontend .
+```
+
+Start the container
+
+```bash
+docker run -p 3000:3000 kephin/frontend
+```
+
+:raising_hand: We'll notice that it took quite long to build the image, and it's because we have **duplicated dependencies**
+
+### :fire: Hot reload inside the container by docker volumes
+
+With docker volumes, we essentially set up a **placeholder** inside of our container, so we no longer copy the entire `src` directory. Instead we're going to put a **reference** pointing back to our local machine.
+
+So a **docker volume** can kind of be imagine as **port mapping**
+
+| command | what does it do |
+| ------- | --------------- |
+|Port mapping|map a port from localhost(outside the container) to a port inside the container|
+|Docker volume|map a folder from localhost(outside the container) to a folder inside the container|
+
+```bash
+docker run -p 3000:3000 -v $(pwd):/app kephin/frontend
+```
+
+But the command above will prompt you errors!
+
+:hushed: Because there are `node_modules` folder inside our container but **NOT** in our local machine. So `node_modules` inside the container will be overwritten to nothing, which cause errors.
+
+To fix this issue, we need to pass an additional `-v` flag with the only argument of the folder, which means we want it to be a placeholder for the folder that is inside the container. Don't map this folder. This is called `bookmarking` the volumes.
+
+```bash
+docker run -p 3000:3000 -v /app/node_modules -v $(pwd):/app kephin/frontend
+```
+
+### Shorthand with Docker Compose
+
+Use `docker-compose` for all the configurations above.
+
+```yml
+version: '3'
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - '3000:3000'
+    volumes:
+      - '.:/app'
+      - '/app/node_modules'
+```
+
+### Testing
+
+:exclamation: But the issue of this approach is that it won't update the test whiling in development since we just build the image with the snapshot file system.
+
+```bash
+# create an image
+docker build -f Dockerfile.env -t kephin/frontend .
+# run the test
+docker run -it kephin/frontend npm run test
+```
+
+:bulb: One approach is to
+
+```bash
+# after the container with volumes mapping setup is up
+docker-compose up --build
+# open another tab and
+# we can run the test inside the container
+docker exec -it kephin/frontend npm test
+```
+
+:bulb: Another approach is to add test service is docker-compose
+
+```dockerfile
+version: '3'
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    ports:
+      - '3000:3000'
+    volumes:
+      - '.:/app'
+      - '/app/node_modules'
+  tests:
+    build:
+      context: .
+      dockerfile: Dockerfile.dev
+    volumes:
+      - '.:/app'
+      - '/app/node_modules'
+    command: ["npm", "test"]
+```
