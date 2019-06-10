@@ -6,6 +6,7 @@
 |2. |[What is Docker](#What-is-Docker)|
 |3. |[Manipulate dockers with docker-cli](#Manipulate-dockers-with-docker-cli)|
 |4. |[Build custom images](#Build-custom-images)|
+|5. |[Make real project with Docker](#Make-real–project-with-Docker)|
 
 ## Why use Docker
 
@@ -180,4 +181,46 @@ docker build .
 docker build -t kephin/redis-server:latest .
 ## then you can just do
 docker run kephin/redis-server
+```
+
+## Make real project with Docker
+
+`alpine` is a term in docker world for a image that as small and compact as possible. Many popular repositories will offer an `alpine` version of their image. The `alpine` version of the image means that you're not going to get a bunch of pre-installed programs.
+
+```dockerfile
+FROM node:alpine
+# specify working directory
+WORKDIR usr/app
+# copy the file from local machine to docker
+COPY ./ ./
+RUN npm install
+CMD ["node", "start"]
+```
+
+### Docker run with port mapping
+
+:exclamation: We have to specify port mapping in the runtime, not inside of the Dockerfile
+
+`docker run -p <route incoming request to this port on localhost>:<to this port inside the container> <image id/name>`
+
+```bash
+docker run -p 8080:8080 kephin/simpleweb
+```
+
+### Minimize cache busting and rebuilds
+
+:bulb: We can change a bit inside Dockerfile so that it can reuse the cache of npm packages whenever we change files excludes `package.json`
+
+```dockerfile
+FROM node:alpine
+
+# specify working directory
+WORKDIR usr/app
+
+# copy the file from local machine to docker
+COPY ./package.json ./
+RUN npm install
+COPY ./ ./
+
+CMD ["node", "start"]
 ```
