@@ -41,9 +41,9 @@ First off, **kernel** will isolate a portion of the hard drive and make it avail
 
 ## Manipulate dockers with docker-cli
 
-*Create* and *run* a container from an image, and we can optionally override the default command
+:pushpin: **Run** a command in a **new** container
 
-`docker run <image name> <command>`
+`docker run [OPTIONS] IMAGE [COMMAND]`
 
 ```bash
 docker run busy-box echo hi there
@@ -53,92 +53,81 @@ And it is equal to
 
 `docker create <image name>`: take the file system snapshot into the new container
 
-plus
+and
 
 `docker start -a <container id>`: execute the startup command, cannot override the startup command
 
 ```bash
 docker create busy-box # will return the container id
-docker start -a 912ewq68qwrkl241lqw
+docker start -a 912ewq68qwrkl241lqw # --attach(-a), Attach STDOUT/STDERR and forward signals
 ```
 
-*List* running containers
+:pushpin: **Run** a command in a **running** container
+
+`docker exec [OPTIONS] CONTAINER COMMAND`
+
+- --interactive , -i: Keep STDIN open even if not attached
+- --tty , -t :arrow-right: Allocate a pseudo-TTY
+
+```bash
+docker exec -it redis redis-cli
+docker exec -it busy-box bash
+```
+
+:pushpin: *List* running containers
 
 ```bash
 docker ps
 # -a: shows all containers
 ```
 
-*Build* Docker images from a Dockerfile and a 'context'
+:pushpin: *Build* Docker images from a Dockerfile and a 'context'
 
 ```bash
 docker build -t 'kephin/myContainer' .
 # -t: label the image
 ```
 
-*Run* a docker container based on an image
-
-```bash
-docker run kephin/myContainer -it bash
-# -it bash: run bash from within the container
-```
-
-*display* the logs of a container
+:pushpin: *display* the logs of a container
 
 ```bash
 docker logs --follow kephin/myContainer
 # --follow: follow the output in the logs of the program
 ```
 
-*List* volumes
+:pushpin: *List* volumes
 
 ```bash
 docker volume ls
 ```
 
-*Remove* on or more *containers*
+:pushpin: *Remove* one or more *containers*
 
 ```bash
 docker rm myContainer
 ```
 
-*Remove* one or more *images*
+:pushpin: *Remove* one or more *images*
 
 ```bash
 docker rmi myImage
 ```
 
-*Stop* one or more *containers*
+:pushpin: *Stop* one or more *containers*
+
+`docker stop`: The main process inside the container will receive SIGTERM, and after a grace period, SIGKILL.
+
+`docker kill`: The main process inside the container will receive SIGKILL.
 
 ```bash
 docker stop myContainer
 docker kill myContainer
 ```
 
+:pushpin: **Remove** unused data
+
 ```bash
 docker system prune -a
-```
-
-:star: Execute an additional command in a container
-
-`docker exec -it <docker name> <command>`
-
-```bash
-docker exec -it redis redis-cli
-docker exec -it busy-box sh
-docker exec -it busy-box zsh
-docker exec -it busy-box bash
-```
-
-```bash
-# Execute Docker image
-docker run busybox
-# List Docker containers (running, all, all in quiet mode)
-docker container ls
-docker container ls --all
-docker container ls -aq
-
-docker exec -it busybox bash
 ```
 
 ## Build custom images
@@ -147,27 +136,36 @@ Create a Dockerfile. The Dockerfile is a configuration to define how our contain
 
 Basic flow of creating a Dockerfile:
 
-1. Specify a base image: download the alpine image
+1. Specify a base image:
+
+    1. :mag: use cache image if we have
+    2. *otherwise* download the alpine image from docker hub
+
 2. Run some commands to install additional packages:
 
-    1. get image from last step
-    2. create a temporary container out of it
-    3. run commands to install packages
-    4. took the file system snapshot
-    5. shut down the temporary container
-    6. get the image ready for the next step
+    1. :mag: use cache image if we have
+    2. *otherwise* :arrow_up: get image from last step
+    3. create a temporary container out of it
+    4. run commands to install packages
+    5. took the file system snapshot
+    6. shut down the temporary container
+    7. :arrow_down: get the image ready for the next step
 
 3. Specify a command to run container startup
 
-    1. get image from last step
-    2. create a temporary container out of it
-    3. tell the container it should run some commands when started
-    4. shut down the temporary container
-    5. get the image ready for the next step
+    1. :mag: use cache image if we have
+    2. *otherwise* :arrow_up: get image from last step
+    3. create a temporary container out of it
+    4. tell the container it should run some commands when started
+    5. shut down the temporary container
+    6. get the image ready for the next step
 
 ```dockerfile
-FROM alpine
+# use an existing docker image as base
+FROM alphine
+# download and install dependencies
 RUN apk add --update redis
+# tell the image what to do when it starts as a container
 CMD ["redis-server"]
 ```
 
@@ -191,10 +189,13 @@ docker run kephin/redis-server
 
 ```dockerfile
 FROM node:alpine
-# specify working directory
+
+# copy the file from local machine to the container
+# any following command will be executed relative to this path in the container
 WORKDIR usr/app
-# copy the file from local machine to docker
+# COPY [PATH to copy from local relative to build context] [PATH to copy to the container]
 COPY ./ ./
+
 RUN npm install
 CMD ["node", "start"]
 ```
@@ -211,15 +212,13 @@ docker run -p 8080:8080 kephin/simpleweb
 
 ### Minimize cache busting and rebuilds
 
-:bulb: We can change a bit inside Dockerfile so that it can reuse the cache of npm packages whenever we change files excludes `package.json`
+:bulb: We want to run `npm install` only when we change `package.json` during docker build. So if nothing is changed in `package.json`, docker will use the cache.
 
 ```dockerfile
 FROM node:alpine
 
-# specify working directory
 WORKDIR usr/app
 
-# copy the file from local machine to docker
 COPY ./package.json ./
 RUN npm install
 COPY ./ ./
@@ -229,9 +228,16 @@ CMD ["node", "start"]
 
 ## Docker compose with multiple local containers
 
-- `docker-compose` is used to start up **multiple containers** at the same time
+Options for connection multiple containers:
 
-- `docker-compose` also automate some long-winded arguments we were passing to `docker run`
+1. Use docker CLI networking features
+2. Use docker-compose
+
+The purpose of docker-compose is to essentially function as docker CLI but allow you to issue multiple commands much more quickly
+
+- To start up **multiple containers** at the same time
+
+- Automate some long-winded arguments we were passing to `docker run`
 
 ### Define `docker-compose.yml` file
 
@@ -257,7 +263,7 @@ services:
       - '3000:8080'
 ```
 
-:smile: Now redis-server and visit-app can communicate to each other automatically.
+:+1: Now redis-server and visit-app can communicate to each other automatically.
 
 So inside our node application
 
@@ -288,7 +294,7 @@ docker run myImage
 docker-compose up
 ```
 
-If we want to re-build the images
+If we want to **re-build** the images
 
 ```bash
 # docker
@@ -302,10 +308,10 @@ If we want to launch containers in background and then want to stop the containe
 
 ```bash
 # docker
-docker run -d redis
+docker run -d redis # -d: running at the background
 docker stop neip122421
 # docker-compose
-docker-compose up -d
+docker-compose up -d # -d: running at the background
 docker-compose down
 ```
 
